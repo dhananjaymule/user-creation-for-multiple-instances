@@ -1,0 +1,25 @@
+#! /bin/bash
+#sudo /bin/bash <<-EOF
+for j in $(cat /home/ec2-user/users);do
+#j=$(cat /home/ec2-user/users)
+    sudo adduser $j
+    if [ $? -eq 0 ]
+    then
+        echo "user will be craeted on the instance $(ifconfig eth0 | grep -m 1 inet | awk '{print $2}') "
+#       sudo -u $j /bin/bash
+#       sudo /bin/bash <<EOF
+#       sudo cd /home/$j
+
+        sudo aws s3 cp s3://dhananjaymule001sshkeys/ssh$j.tar.gz /home/
+        sleep 5
+#       sudo mv /home/ssh$j.tar.gz /home/$j
+        sleep 5
+        sudo tar -zxvf /home/ssh$j.tar.gz -C /home/$j
+#       cd ./.ssh/ & chmod 600 ./*
+        sudo rm -f /home/ssh$j.tar.gz
+#EOF
+    else
+        echo "user was already there check with admin"
+    fi
+done
+#EOF

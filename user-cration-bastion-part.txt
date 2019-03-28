@@ -1,0 +1,51 @@
+#!/bin/bash
+
+#this script is is used to create users in provided instances and generate keys for the same
+#the script is tu be run at elevated privilages (root)
+
+echo "Enter the username to be created: "
+
+read USERNAME
+
+adduser $USERNAME
+
+if [ $? -eq 0 ]
+then
+    echo "user has been created and the same will be created for mentioned instances"
+else
+    echo "user will not be created!!"
+    break
+fi
+###################################################################################################################
+sudo -u $USERNAME /bin/bash <<-EOF
+cd $HOME
+#generate keys
+ssh-keygen -t rsa -f /home/$USERNAME/.ssh/id_rsa -P ""
+#copy generated key on authorized_keys
+touch ~/.ssh/authorized_keys
+
+cp ~/.ssh/id_rsa.pub  ~/.ssh/authorized_keys
+chmod  600  ~/.ssh/*
+cd /home/$USERNAME/
+tar -cvzf ssh$USERNAME.tar.gz ~/.ssh/
+#now key is created for user and now same user is to be created on other instances  and key has to be added for them
+sleep 5
+#we will upload the key on S3 bucket / we can also perform scp for same
+#aws s3 mb s3://mysshusers --region us-ease-1 # pre-requisit
+sleep 5
+aws s3 cp /home/$USERNAME/ssh$USERNAME.tar.gz s3://dhananjaymule001sshkeys
+EOF
+
+for j in $(cat /home/ec2-user/CreateSsh/instances); do
+#    aws ec2 describe-instances --instance-ids $j | grep -i platform
+#        if [ $? -eq 0 ]
+#        then #os is linux
+            IP=$(aws ec2 describe-instances --instance-ids $j | grep -m 1 -i privateipaddress | cut -d '"' -f 4) # grep ip address
+            KEYNAME=$(aws ec2 describe-instances --instance-ids $j | grep -i keyname | cut -d '"' -f 4 | uniq)
+            KEYPAIR=$(find / -name $KEYNAME.pem) #find location of keypair in
+            ssh -i $KEYPAIR ec2-user@$IP "echo $USERNAME > users" #send usernames
+            ssh -T -vvv  -i $KEYPAIR ec2-user@$IP 'bash -s' < /home/ec2-user/CreateSsh/users.sh  #pass script to create users and share ssh file
+#        fi
+            sleep 10
+done
+rm /home/$USERNAME/ssh$(USERNAME).tar.gz
